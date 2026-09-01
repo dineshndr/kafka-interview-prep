@@ -1,0 +1,333 @@
+Kafka Interview Preparation --- Day 1
+
+Goal
+
+Build interview-ready Kafka fundamentals using real-world JPMorgan
+transaction-processing experience.
+
+1. Core Mental Model
+
+Cluster ≠ Topic ≠ Partition ≠ Consumer Group
+
+Kafka Cluster
+  ├── Brokers
+  └── Topics
+        └── Partitions
+              └── Records / Offsets
+
+Consumer Group
+  └── Consumers
+        └── Assigned Partitions
+
+2. Cluster
+
+A Kafka cluster is a collection of brokers working together. In the
+JPMorgan example, NA-1714 represents the UAT/testing Kafka
+cluster/environment.
+
+3. Topic
+
+A topic is a named stream/category of events. Example topic names
+included patterns such as:
+
+EKS-Spark-Legacy-CashTran-Denom-Reconcilable-CID-85033-NA-1714-1
+EKS-Spark-Legacy-CashTran-Denom-Reconcilable-CID-85033-NA-1714-2
+EKS-Spark-Legacy-CashTran-Denom-Reconcilable-CID-85033-NA-1714-3
+
+Important: -1, -2, -3 are not automatically partition numbers.
+They may simply be separate topic names. Each topic can have its own
+partitions.
+
+4. Partition
+
+A partition is an ordered, append-only sequence of records inside a
+topic. Partitions provide scalability and parallelism.
+
+CashTran Topic
+  ├── Partition 0
+  ├── Partition 1
+  └── Partition 2
+
+Kafka ordering is guaranteed within a partition, not across an entire
+topic.
+
+5. Offset
+
+An offset identifies a record's position within a specific partition.
+The same offset number can exist in different partitions.
+
+Topic A / Partition 0 / Offset 10
+Topic B / Partition 0 / Offset 10
+
+These are different records.
+
+The committed position is best thought of as consumer group + topic +
+partition.
+
+6. Consumer Groups
+
+Consumers in the same group cooperate to process partitions. A partition
+is assigned to at most one active consumer in a consumer group at a
+time.
+
+Different consumer groups can independently consume the same topic and
+maintain independent offsets.
+
+Kafka Topic
+   ├── OTM Consumer Group
+   └── EKS/Spark Consumer Group
+
+7. Multiple Topics
+
+A consumer can subscribe to multiple topics. It does not automatically
+consume every topic in a cluster. Kafka assigns the partitions of its
+subscribed topics.
+
+8. Consumer Scaling
+
+If a topic has 3 partitions and a consumer group has 5 consumers, at
+most 3 consumers can actively consume those partitions at one time.
+Extra consumers remain idle for that topic.
+
+Partitions provide the parallelism.
+
+9. Consumer Lag
+
+Consumer lag represents how far behind a consumer group's position is
+from the latest available position for a partition.
+
+Example:
+
+Latest available offset = 109
+Consumer group's committed position = 104
+Approximate lag = 5
+
+If the producer continues producing faster than the consumer processes,
+lag increases. If the consumer catches up, lag approaches zero.
+
+10. Offset Reset / Replay
+
+Kafka retention and consumer offsets are separate concepts. If records
+are still retained, a consumer group's offset can be moved backward so
+retained events can be replayed.
+
+Replay can cause duplicate processing, so applications may need
+idempotency.
+
+11. JPMorgan Experience
+
+Worked with Kafka-based asynchronous communication in a high-volume
+transaction-processing environment. A Denom publisher produced millions
+of transaction events in a GAP/Cloud Foundry environment. Downstream
+systems included OTM and EKS/Spark. Feed models included CashTran,
+StockTran, and StockPOS.
+
+Simplified flow:
+
+Denom Producer
+      │
+      ▼
+    Kafka
+      ├──────────────► OTM Consumer Group
+      │                    └── Matching / Breaks
+      │
+      └──────────────► EKS/Spark Consumer Group
+                           └── Processing / Reports
+
+A production concern involved consumer lag. When historical events
+needed reprocessing, offsets could be reset for the relevant consumer
+group/topic-partition and retained events replayed.
+
+12. Dev / QA / UAT Observation
+
+If Dev, QA, and UAT consumers use the same group.id, Kafka treats them
+as members of the same consumer group. They can receive different
+partition assignments. This explains why only the intended testing
+consumer may be kept active during testing.
+
+The record is not necessarily deleted when consumed; the important issue
+is that the group's committed position can advance.
+
+13. Partitioning Strategy
+
+When a producer sends a record, Kafka determines which partition
+receives it. Common approaches are key-based partitioning, keyless
+partitioning, and custom partitioners.
+
+Key-based partitioning
+
+A producer can provide a key such as accountId. Kafka's partitioning
+logic uses the key to select a partition. Records with the same key can
+therefore be routed to the same partition under the same partitioning
+setup.
+
+accountId = ACC456
+        │
+        ▼
+Partitioning logic
+        │
+        ▼
+Partition 2
+
+This is useful when ordering for a business entity matters.
+
+Keyless partitioning
+
+When no key is provided, Kafka can distribute records across partitions
+according to its keyless partitioning behavior. This is useful when
+ordering by a particular business entity is not required.
+
+Custom partitioner
+
+Applications can implement custom routing logic when default behavior
+does not meet business requirements.
+
+14. Ordering
+
+Kafka guarantees ordering within a partition. If related events must
+remain ordered, use a suitable partition key so they are routed to the
+same partition.
+
+Important: More partitions improve parallelism, but they also mean
+ordering is only guaranteed separately within each partition.
+
+15. Hot Partitions
+
+A poor key can create an uneven distribution. If one key represents a
+large percentage of traffic, that key can make one partition much busier
+than others. Adding consumers alone may not solve this because the key
+continues routing to the same partition.
+
+16. Interview Answers to Memorize
+
+What is a topic?
+
+A topic is a named stream/category of events in Kafka.
+
+What is a partition?
+
+A partition is an ordered, append-only sequence of records within a
+topic and is a primary unit of Kafka parallelism.
+
+Can two topics both have Partition 0?
+
+Yes. Partition numbering is scoped to each topic.
+
+Can different consumer groups consume the same message?
+
+Yes. Each group maintains its own offsets and can independently consume
+the same topic.
+
+Can consumers in the same group all receive the same message?
+
+Normally no. A partition is assigned to only one active consumer within
+a group at a time.
+
+What is consumer lag?
+
+It is the distance between the latest available position and the
+consumer group's position for a topic-partition.
+
+Why use a partition key?
+
+To control partition placement and, when needed, preserve ordering for a
+business entity.
+
+What happens if there are more consumers than partitions?
+
+Some consumers will have no partition assigned for that topic and remain
+idle.
+
+17. What I Know vs. What I Need to Strengthen
+
+Direct experience
+
+Kafka asynchronous communication
+
+Millions of transaction events
+
+Multiple consumer groups
+
+Multiple topics
+
+Consumer lag
+
+Offset reset/replay
+
+Dev/UAT/QA consumer behavior
+
+Need deeper preparation
+
+Producer configuration
+
+Consumer configuration
+
+Spring Kafka and @KafkaListener
+
+Offset commit strategies
+
+Rebalancing
+
+Producer acks
+
+Idempotent producer
+
+Retries
+
+Serialization / deserialization
+
+Replication
+
+Leader / follower
+
+ISR
+
+At-most-once / at-least-once / exactly-once
+
+Idempotent consumers
+
+Kafka + Spring Boot production architecture
+
+18. Next-Day Starting Point
+
+Partition ordering in depth
+
+Producer internals
+
+acks
+
+Batching and compression
+
+Retries
+
+Idempotent producer
+
+Producer failure scenarios
+
+Quick Revision
+
+Cluster
+  ↓
+Topics
+  ↓
+Partitions
+  ↓
+Records
+  ↓
+Offsets
+
+Consumers
+  ↓
+Consumer Group
+  ↓
+Partition Assignment
+  ↓
+Committed Offsets
+  ↓
+Consumer Lag
+
+One sentence
+
+Kafka topics contain partitions; partitions contain ordered records
+identified by offsets; consumer groups consume those partitions
+cooperatively and maintain committed positions per topic-partition.
