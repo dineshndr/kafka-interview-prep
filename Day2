@@ -1,0 +1,883 @@
+Day 2 — Java Collections, Generics, Immutability & Kafka
+
+Interview preparation notes for Java / Spring Boot / Microservices roles.
+
+1. Topics Covered
+
+ArrayList vs LinkedList
+
+ArrayList resizing and amortized complexity
+
+HashSet
+
+String Pool and == vs equals()
+
+String immutability
+
+Checked vs unchecked exceptions
+
+final, finally, finalize
+
+Generics
+
+Generic invariance and PECS
+
+Immutable classes
+
+Kafka fundamentals
+
+2. ArrayList vs LinkedList
+
+ArrayList
+
+ArrayList is backed by a dynamically resizable array.
+
+Maintains insertion order.
+
+get(index) → O(1)
+
+Append at end → O(1) amortized
+
+Insert/remove in the middle → generally O(n) because elements may shift.
+
+Good cache locality and relatively low memory overhead.
+
+LinkedList
+
+Java's LinkedList is a doubly linked list.
+
+Conceptually:
+
+Node A <-> Node B <-> Node C
+
+Each node contains the element and references to neighboring nodes.
+
+Maintains insertion order.
+
+get(index) → O(n)
+
+Insertion/removal can be O(1) when the relevant node is already known.
+
+Finding an indexed position can still be O(n).
+
+Comparison
+
+Operation
+
+ArrayList
+
+LinkedList
+
+get(index)
+
+O(1)
+
+O(n)
+
+add(element) at end
+
+O(1) amortized
+
+O(1)
+
+add(0, element)
+
+O(n)
+
+O(1)
+
+Remove first element
+
+O(n)
+
+O(1)
+
+Random access
+
+Excellent
+
+Poor
+
+Interview answer
+
+ArrayList is backed by a dynamically resizable array, so it provides O(1) random access but insertion/removal in the middle is O(n) because elements may need to be shifted. LinkedList is a doubly linked list, so indexed access is O(n), while insertion/removal can be O(1) when the relevant node is already available.
+
+Important: Do not simply say "LinkedList is better for insertion." The precise statement is that it is efficient when the relevant node/position is already known.
+
+3. ArrayList Capacity, Size & Resizing
+
+Size vs Capacity
+
+size     = number of elements currently stored
+capacity = space currently available in the backing array
+
+Example:
+
+size = 5
+capacity = 8
+
+Resizing
+
+Java arrays have fixed length. When an ArrayList's backing array is full:
+
+A larger array is allocated.
+
+Existing elements are copied.
+
+The new element is inserted.
+
+The old backing array becomes eligible for garbage collection.
+
+Therefore:
+
+A resize can cost O(n).
+
+Normal append is O(1).
+
+Across many additions, append is O(1) amortized.
+
+Pre-sizing
+
+If you know approximately how many elements are needed:
+
+List<Transaction> transactions =
+        new ArrayList<>(1_000_000);
+
+This sets initial capacity, not size.
+
+Immediately after creation:
+
+capacity ≈ 1,000,000
+size = 0
+
+Pre-sizing can reduce repeated resizing and copying.
+
+4. HashSet
+
+HashSet is useful for:
+
+Unique elements.
+
+Fast membership checking.
+
+Average O(1) insertion, removal, and lookup.
+
+Example:
+
+Set<String> processedIds = new HashSet<>();
+
+processedIds.add("TX123");
+processedIds.add("TX456");
+processedIds.add("TX123");
+
+The duplicate TX123 is not stored twice.
+
+HashSet vs HashMap
+
+HashSet → unique values
+HashMap → key-value pairs
+
+Conceptually, HashSet uses a HashMap internally and stores the set element as a key with a dummy value.
+
+No random access
+
+This is invalid:
+
+set.get(5); // no indexed access
+
+Instead:
+
+set.contains("TX123");
+
+is average O(1).
+
+Banking example
+
+For one million transaction IDs, if the main question is:
+
+"Have I already processed this transaction?"
+
+Use a HashSet, because:
+
+HashSet.contains()  → O(1) average
+ArrayList.contains() → O(n)
+
+Do not claim HashSet operations are always O(1); average-case complexity assumes good hash distribution.
+
+5. String Pool and == vs equals()
+
+Consider:
+
+String a = "hello";
+String b = "hello";
+String c = new String("hello");
+
+Conceptually:
+
+String Pool:
+"hello" <- a
+          b
+
+Heap:
+"hello" <- c
+
+Therefore:
+
+a == b       // true
+a == c       // false
+b == c       // false
+
+== compares object references.
+
+But:
+
+a.equals(b)  // true
+a.equals(c)  // true
+b.equals(c)  // true
+
+String.equals() compares logical content.
+
+Interview answer
+
+== compares whether two references point to the same object, while equals() compares logical content. String literals may be shared through the String Pool, while new String() creates a separate String object.
+
+6. String Immutability
+
+String objects are immutable.
+
+String s = "hello";
+s.concat(" world");
+
+System.out.println(s);
+
+Output:
+
+hello
+
+concat() creates a new String instead of modifying the existing String.
+
+To use the new value:
+
+s = s.concat(" world");
+
+Why String immutability matters
+
+Safe sharing through the String Pool.
+
+Naturally thread-safe.
+
+Useful for security-sensitive values.
+
+Hash codes can safely be used/cached because content does not change.
+
+Reassignment:
+
+String s = "hello";
+s = "world";
+
+does not modify "hello"; it changes what s references.
+
+7. Checked vs Unchecked Exceptions
+
+Checked exceptions
+
+The compiler requires checked exceptions to be handled or declared.
+
+Examples:
+
+IOException
+SQLException
+FileNotFoundException
+
+Example:
+
+public void readFile() throws IOException {
+    // ...
+}
+
+Unchecked exceptions
+
+Unchecked exceptions extend RuntimeException.
+
+Examples:
+
+NullPointerException
+IllegalArgumentException
+NumberFormatException
+ArrayIndexOutOfBoundsException
+
+The compiler does not force explicit catch/declare handling.
+
+Important distinction
+
+A syntax error is a compile-time error, not a checked exception.
+
+Compile-time error != checked exception
+
+Interview answer
+
+Checked exceptions must be handled or declared by the compiler, such as IOException and SQLException. Unchecked exceptions extend RuntimeException and do not require explicit handling, such as NullPointerException and IllegalArgumentException.
+
+8. final, finally, and finalize
+
+final
+
+Used to restrict reassignment, overriding, or inheritance.
+
+final int x = 10;
+
+The variable cannot be reassigned.
+
+final void process() {}
+
+A subclass cannot override the method.
+
+final class PaymentService {}
+
+The class cannot be extended.
+
+finally
+
+Used with exception handling, commonly for cleanup:
+
+try {
+    processPayment();
+} catch (Exception e) {
+    handleError(e);
+} finally {
+    closeConnection();
+}
+
+Modern Java generally prefers try-with-resources for resource cleanup.
+
+finalize()
+
+An old garbage-collection-related cleanup mechanism.
+
+For modern Java:
+
+Do not rely on finalization.
+
+It is deprecated.
+
+Prefer try-with-resources or explicit resource management.
+
+Memory trick
+
+final     → restriction
+finally   → cleanup block
+finalize  → old GC-related mechanism; avoid using it
+
+9. Generics
+
+Generics specify the type a collection works with.
+
+List<String> names = new ArrayList<>();
+
+This gives compile-time type safety:
+
+names.add("Dinesh");
+names.add(100); // compile-time error
+
+Without generics:
+
+List names = new ArrayList();
+
+names.add("Dinesh");
+names.add(100);
+
+String name = (String) names.get(1);
+
+This can cause ClassCastException at runtime.
+
+Benefits
+
+Compile-time type safety.
+
+Fewer casts.
+
+Earlier error detection.
+
+Better readability.
+
+10. Raw Types vs Wildcards
+
+These are different:
+
+List          // raw type
+List<?>       // wildcard
+List<String>  // parameterized type
+
+List<?> means a list of some unknown type.
+
+It is not the same as a raw List.
+
+11. Generic Invariance
+
+Even though:
+
+Integer extends Number
+
+this is invalid:
+
+List<Integer> integers = new ArrayList<>();
+List<Number> numbers = integers; // compile-time error
+
+Java generics are invariant.
+
+Why?
+
+If this were allowed:
+
+List<Integer> integers = new ArrayList<>();
+List<Number> numbers = integers;
+numbers.add(10.5); // Double is a Number
+
+A Double could enter a list that is supposed to contain only Integer.
+
+Therefore Java prevents the assignment.
+
+12. PECS — Producer Extends, Consumer Super
+
+extends → producer / read
+
+List<? extends Number> numbers
+
+You can safely read:
+
+Number n = numbers.get(0);
+
+You generally cannot add a Number because the actual list could be List<Double>.
+
+super → consumer / write
+
+List<? super Integer> numbers
+
+You can safely add:
+
+numbers.add(10);
+
+The underlying list could be:
+
+List<Integer>
+List<Number>
+List<Object>
+
+Key rule
+
+Do not think:
+
+Producer = parent, Consumer = child.
+
+PECS is about data-flow direction:
+
+? extends T → read / producer
+? super T   → write / consumer
+
+13. Immutable Classes
+
+An immutable object is an object whose state cannot change after construction.
+
+Typical design:
+
+Make the class final.
+
+Make fields private final.
+
+Initialize fields through a constructor.
+
+Do not provide setters.
+
+Use defensive copies for mutable fields.
+
+Example:
+
+public final class Employee {
+
+    private final String name;
+    private final int salary;
+
+    public Employee(String name, int salary) {
+        this.name = name;
+        this.salary = salary;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getSalary() {
+        return salary;
+    }
+
+    public int calculateBonus() {
+        return salary * 10 / 100;
+    }
+}
+
+Why final class?
+
+Immutability does not mathematically require final in every possible design, but making the class final prevents subclassing from introducing mutable state or changing behavior, making the immutability guarantee safer.
+
+Logic methods are allowed
+
+An immutable class can contain normal business logic:
+
+public int calculateBonus() {
+    return salary * 10 / 100;
+}
+
+It does not need to be final if the class itself is final.
+
+Singleton is NOT required
+
+Immutable → state cannot change
+Singleton  → only one instance should exist
+
+An immutable class can have many instances.
+
+Mutable fields need defensive copying
+
+This alone is not enough:
+
+private final List<String> skills;
+
+final prevents reassignment of the reference; it does not make the List immutable.
+
+Use:
+
+this.skills = List.copyOf(skills);
+
+when appropriate.
+
+14. Constructor Rule
+
+Java automatically provides an implicit no-argument constructor only if no constructor is declared.
+
+This:
+
+class Employee {
+}
+
+gets an implicit no-arg constructor.
+
+But this:
+
+class Employee {
+
+    Employee(String name) {
+        // ...
+    }
+}
+
+does NOT automatically get Employee().
+
+If both are needed, define both explicitly.
+
+For immutable classes, a parameterized constructor is commonly used to initialize all final fields.
+
+15. Kafka Fundamentals
+
+Kafka is an event-streaming platform used for high-volume asynchronous processing.
+
+For this Java/Spring Boot role, the goal is application-level Kafka understanding rather than Kafka platform administration.
+
+Core architecture
+
+Producer
+   ↓
+Topic
+   ↓
+Partitions
+   ↓
+Consumer Group
+   ↓
+Consumers
+
+Topic
+
+A named stream/category of records.
+
+Example:
+
+transaction-events
+
+Partition
+
+Topics are divided into partitions for parallelism and scalability.
+
+Topic: transaction-events
+
+Partition 0
+Partition 1
+Partition 2
+
+Kafka ordering is guaranteed within a partition, not globally across all partitions.
+
+Offset
+
+An offset is the position of a record within a specific partition.
+
+Each partition has its own offset sequence.
+
+Offset is not a global index across the topic.
+
+Consumer group
+
+Consumers in the same group work together.
+
+Within one consumer group:
+
+Only one consumer actively consumes a particular partition at a time.
+
+Example:
+
+3 partitions
+3 consumers
+
+P0 → C1
+P1 → C2
+P2 → C3
+
+If there are 5 consumers for 3 partitions:
+
+P0 → C1
+P1 → C2
+P2 → C3
+
+C4 → idle
+C5 → idle
+
+Consumers from different groups can independently consume the same partition.
+
+16. Kafka Offsets and Replay
+
+Do not confuse:
+
+Current consumer position
+vs
+Committed offset
+
+A committed offset represents the consumer group's recorded progress for a topic-partition.
+
+After a consumer crash/rebalance, another consumer can resume from the group's committed progress.
+
+Kafka retention and offsets are separate.
+
+If records are still retained, consumers can potentially replay them by resetting offsets.
+
+17. Kafka Ordering and Keys
+
+Kafka guarantees ordering within a partition.
+
+If ordering for a business entity matters, use a stable key so related events are routed to the same partition.
+
+Example:
+
+transactionId → partitioning key
+
+This can preserve ordering for events associated with the same transaction/entity.
+
+18. Kafka Consumer Lag
+
+Consumer lag represents how far behind a consumer group is from the latest available records.
+
+High lag can indicate:
+
+Consumers are too slow.
+
+Processing is expensive.
+
+Traffic increased.
+
+Downstream dependencies are slow.
+
+Consumer failures/rebalances.
+
+Insufficient parallelism.
+
+Production troubleshooting often starts by checking lag and processing throughput.
+
+19. Kafka Delivery Semantics
+
+At-least-once
+
+Receive
+  ↓
+Process
+  ↓
+Commit
+
+If the application crashes after processing but before commit, the message may be processed again.
+
+Therefore duplicates are possible.
+
+At-most-once
+
+Receive
+  ↓
+Commit
+  ↓
+Process
+
+If the application crashes after commit but before processing, the message may be lost.
+
+Exactly-once
+
+Requires more sophisticated transactional/idempotent design.
+
+Do not casually claim exactly-once semantics for ordinary consumers.
+
+20. Kafka Idempotency
+
+At-least-once processing often requires idempotent business logic.
+
+Example:
+
+transactionId = TX123
+
+A database uniqueness constraint can prevent duplicate business effects:
+
+transaction_id UNIQUE
+
+Important distinction:
+
+Kafka producer idempotence helps prevent duplicate records caused by producer retries.
+
+It does NOT automatically make external database/business operations idempotent.
+
+A timestamp helps audit/order tracking but does not itself provide idempotency.
+
+21. Kafka Interview Positioning
+
+A safe and accurate interview statement:
+
+I have hands-on experience working with Kafka-based asynchronous systems, including high-volume transaction streams, consumer groups, consumer lag, offset management and replay, and downstream processing. I'm familiar with the Spring Kafka programming model and underlying Kafka concepts, although my primary role was not Kafka platform administration.
+
+22. High-Yield Cheat Sheet
+
+Collections
+
+ArrayList
+→ indexed access
+→ O(1) get
+→ O(1) amortized append
+→ O(n) middle insertion/removal
+
+LinkedList
+→ doubly linked nodes
+→ O(n) indexed access
+→ O(1) insertion/removal when node is known
+
+HashSet
+→ uniqueness
+→ O(1) average contains/add/remove
+→ no indexed access
+
+HashMap
+→ key-value mapping
+→ O(1) average get/put
+
+Equality
+
+==       → reference identity
+equals() → logical/content equality
+
+For custom objects used as HashMap keys or HashSet elements:
+
+equals() + hashCode()
+must be consistent
+
+If a.equals(b) is true, their hash codes must be equal.
+
+Same hash code does NOT necessarily mean objects are equal.
+
+Strings
+
+String → immutable
+literal → String Pool
+new String() → separate String object
+
+Exceptions
+
+Checked
+→ compiler requires handle/declare
+→ IOException, SQLException
+
+Unchecked
+→ RuntimeException
+→ NPE, IllegalArgumentException
+
+Generics
+
+List<String> → type-safe
+List<?>      → unknown type
+List         → raw type
+
+extends → producer/read
+super   → consumer/write
+
+Immutability
+
+final class
+private final fields
+constructor initialization
+no setters
+defensive copies for mutable fields
+
+Kafka
+
+Topic
+→ Partitions
+→ Offsets
+→ Consumer Groups
+→ Consumers
+
+Ordering → per partition
+Lag → consumer behind latest
+Replay → retained records + offset reset
+At-least-once → duplicates possible
+
+23. Next: Day 3
+
+Continue with broad, high-yield coverage:
+
+Java Streams
+
+Lambda expressions
+
+Functional interfaces
+
+map vs flatMap
+
+filter
+
+reduce
+
+collect
+
+Optional
+
+Java 17/21 features
+
+Spring Boot fundamentals
+
+REST APIs
+
+WebClient
+
+JPA/Hibernate
+
+RabbitMQ
+
+Spring Security / JWT / OAuth2
+
+JUnit / Mockito
+
+Docker / Maven / Git
+
+Production troubleshooting
+
+Microservice system design
+
+Financial-services scenario
